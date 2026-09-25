@@ -63,6 +63,7 @@ async def run_verifier(ctx: CaseContext, envelope: Envelope) -> dict[str, Any]:
         order_ids=list(entity.get("resolved_order_ids") or []),
         item_ids=list(order.get("item_ids") or []),
         seller_ids=list(order.get("seller_ids") or []),
+        payment_references=_payment_references(ctx, issue, payment),
     )
     out["entity_resolution"].update(
         status=entity.get("status", "not_found"),
@@ -146,6 +147,36 @@ def _align_payment(issue: str, payment: dict[str, Any]) -> dict[str, Any]:
         refunded = payment.get("refunded_total") or Decimal("0")
         payment["refundable_total"] = max(captured - refunded, Decimal("0"))
     return payment
+
+
+PAYMENT_ISSUES = {
+    "canceled_order_paid",
+    "unavailable_order_paid",
+    "valid_split_payment",
+    "payment_mismatch",
+    "duplicate_charge",
+    "refund_pending",
+    "refund_failed",
+}
+
+
+def _payment_references(ctx: CaseContext, issue: str, payment: dict[str, Any]) -> list[str]:
+    """`<order_id>:<payment_sequential>` of the payment rows behind the scoped captures.
+
+    Only for payment-domain issues; delivery issues and rejected claims reference none.
+    """
+    order_id = (ctx.findings.get("entity") or {}).get("order_id")
+    rows = (ctx.findings.get("raw_payment") or {}).get("payments") or []
+    if issue not in PAYMENT_ISSUES or not order_id or not rows:
+        return []
+    amounts = set(payment.get("split_group") or []) if issue == "valid_split_payment" else set()
+    amounts = amounts or set(payment.get("captures") or [])
+    seqs = set()
+    for row in rows:
+        value, seq = money(row.get("payment_value")), row.get("payment_sequential")
+        if value is not None and value in amounts and str(seq).strip().isdigit():
+            seqs.add(int(seq))
+    return [f"{order_id}:{seq}" for seq in sorted(seqs)][:20]
 
 
 def _evidence_by_group(f: dict[str, Any]) -> dict[str, list[str]]:

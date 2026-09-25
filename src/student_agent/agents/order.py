@@ -42,6 +42,7 @@ async def run_order_agent(ctx: CaseContext, envelope: Envelope) -> list[dict[str
         for scope in entity["scopes"]
     ]
     ctx.findings["order_by_scope"] = analyses
+    ctx.findings["raw_items"] = rows if refs else []
     ctx.handoff(envelope, POLICY_AGENT, "ORDER_ITEMS_SCOPED", refs + product_refs)
     return analyses
 

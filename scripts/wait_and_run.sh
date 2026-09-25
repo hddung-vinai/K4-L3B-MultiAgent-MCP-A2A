@@ -12,6 +12,14 @@ DAY09=.venv/Scripts/day09.exe
 export PYTHONIOENCODING=utf-8
 LOG="debug/wait_${LABEL}.log"
 mkdir -p debug
+# Only one run may touch outputs/, traces/ and dist/ at a time.
+LOCK="debug/.run.lock"
+if ! mkdir "$LOCK" 2>/dev/null; then
+  echo "another run holds $LOCK (pid $(cat "$LOCK/pid" 2>/dev/null)); refusing to start" >&2
+  exit 5
+fi
+echo $$ > "$LOCK/pid"
+trap 'rm -rf "$LOCK"' EXIT
 : > "$LOG"
 
 probe() {

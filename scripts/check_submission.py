@@ -43,6 +43,11 @@ def main() -> int:
         default=[],
         help="optional tool: ignored on both sides of the baseline comparison",
     )
+    ap.add_argument(
+        "--allow-extra",
+        action="store_true",
+        help="accept citing more tools than the baseline (never fewer)",
+    )
     args = ap.parse_args()
 
     problems: list[str] = []
@@ -186,7 +191,7 @@ def main() -> int:
                     for tool in (consumed[cid].get(r, "?") for r in docs[cid]["evidence_refs"])
                     if tool not in args.allow_dropped
                 )
-                if want != got:
+                if (want - got) or (not args.allow_extra and got - want):
                     diffs.append((cid, dict(want - got), dict(got - want)))
         if diffs:
             problems.append(f"cited tools differ from baseline: {diffs[:5]}")

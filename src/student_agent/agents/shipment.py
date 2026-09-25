@@ -30,6 +30,9 @@ async def run_shipment_agent(ctx: CaseContext, envelope: Envelope) -> list[dict[
         for scope, order in zip(entity["scopes"], ctx.findings["order_by_scope"], strict=True)
     ]
     ctx.findings["shipment_by_scope"] = analyses
+    ctx.findings["raw_shipment_events"] = [
+        e for e in summary.get("events") or [] if isinstance(e, dict)
+    ]
     ctx.handoff(envelope, POLICY_AGENT, f"SHIPMENT_{analyses[0]['verdict'].upper()}", refs)
     return analyses
 

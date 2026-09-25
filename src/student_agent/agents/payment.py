@@ -49,6 +49,8 @@ async def run_payment_agent(ctx: CaseContext, envelope: Envelope) -> list[dict[s
         for scope, order in zip(entity["scopes"], ctx.findings["order_by_scope"], strict=True)
     ]
     ctx.findings["payment_by_scope"] = analyses
+    ctx.findings["raw_payment"] = timeline
+    ctx.findings["raw_refund_events"] = refund_events
     verdict = analyses[0]["verdict"]
     ctx.handoff(envelope, POLICY_AGENT, f"PAYMENT_{verdict.upper()}", refs + refund_refs)
     return analyses
