@@ -5,11 +5,35 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
+import anyio
 import httpx2
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.shared.exceptions import MCPError
 
 from .contracts import Contracts
+
+# Session/transport-level failures: the case must be retried, never answered from partial data.
+TRANSPORT_ERRORS: tuple[type[BaseException], ...] = (
+    httpx2.TransportError,
+    anyio.ClosedResourceError,
+    anyio.BrokenResourceError,
+    anyio.EndOfStream,
+    MCPError,
+    TimeoutError,
+    ConnectionError,
+    OSError,
+)
+
+
+class GatewayUnavailable(RuntimeError):
+    """Raised when MCP stays unreachable after the bounded transient retry."""
+
+
+def is_transport_failure(exc: BaseException) -> bool:
+    if isinstance(exc, BaseExceptionGroup):
+        return any(is_transport_failure(inner) for inner in exc.exceptions)
+    return isinstance(exc, (GatewayUnavailable, *TRANSPORT_ERRORS))
 
 
 class EvidenceGateway:
@@ -24,7 +48,7 @@ class EvidenceGateway:
     async def call(self, tool_name: str, *, case_id: str, **arguments: str) -> dict[str, Any]:
         payload = {"case_id": case_id, **arguments}
         result = await self._session.call_tool(tool_name, arguments=payload)
-        if result.isError:
+        if getattr(result, "is_error", None) or getattr(result, "isError", None):
             message = " ".join(
                 block.text for block in result.content if getattr(block, "text", None)
             )

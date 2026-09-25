@@ -46,6 +46,31 @@ class TraceWriter:
         }
         event.update({key: value for key, value in optional.items() if value is not None})
         self.contracts.validate_trace(event, "trace event")
-        with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n")
+        self.write([event])
         return event
+
+    def write(self, events: list[dict[str, Any]]) -> None:
+        with self.path.open("a", encoding="utf-8") as handle:
+            for event in events:
+                handle.write(json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n")
+
+
+class CaseTraceBuffer(TraceWriter):
+    """Holds one case's events in memory; they reach trace.jsonl only if the case completes.
+
+    A case interrupted by a lost MCP session is re-run from scratch, so its partial events
+    must never be persisted.
+    """
+
+    def __init__(self, writer: TraceWriter) -> None:
+        self.path = writer.path
+        self.contracts = writer.contracts
+        self._writer = writer
+        self.events: list[dict[str, Any]] = []
+
+    def write(self, events: list[dict[str, Any]]) -> None:
+        self.events.extend(events)
+
+    def flush(self) -> None:
+        self._writer.write(self.events)
+        self.events = []
