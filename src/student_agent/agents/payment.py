@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from decimal import Decimal
 from itertools import combinations
 from typing import Any
 
 from ..a2a import PAYMENT_AGENT, POLICY_AGENT, CaseContext, Envelope
+from ..planner import PAYMENT, REFUND
 from ..timeline import OrderScope, money
 
-REFUND_TOPICS = {"refund_pending", "refund_failed", "requested_refund_status"}
 REFUND_DONE = {"succeeded", "completed", "processed", "refunded", "confirmed"}
 TOLERANCE = Decimal("0.01")
 MAX_SUBSET_CAPTURES = 12
@@ -22,14 +23,16 @@ async def run_payment_agent(ctx: CaseContext, envelope: Envelope) -> list[dict[s
     refs: list[str] = []
     refund_refs: list[str] = []
 
+    plan = ctx.findings["plan"]
     timeline: dict[str, Any] = {}
-    ev = await ctx.evidence.fetch(PAYMENT_AGENT, "get_payment_timeline", order_id=order_id)
-    if ev is not None and isinstance(ev.data, dict):
-        refs.append(ev.ref)
-        timeline = ev.data
+    if PAYMENT in plan:
+        ev = await ctx.evidence.fetch(PAYMENT_AGENT, "get_payment_timeline", order_id=order_id)
+        if ev is not None and isinstance(ev.data, dict):
+            refs.append(ev.ref)
+            timeline = ev.data
 
     refund_events: list[dict[str, Any]] = []
-    if _needs_refund_timeline(ctx.case):
+    if REFUND in plan:
         refund_ev = await ctx.evidence.fetch(
             PAYMENT_AGENT, "get_refund_timeline", order_id=order_id
         )
@@ -57,11 +60,11 @@ def analyze_payment(
     scope: OrderScope,
     order_value: Decimal | None,
 ) -> dict[str, Any]:
-    events = [
+    events = _distinct(
         e
         for e in timeline.get("events") or []
         if isinstance(e, dict) and scope.contains(e.get("event_at"))
-    ]
+    )
     captures = [
         money(e.get("amount_brl"))
         for e in events
@@ -74,7 +77,7 @@ def analyze_payment(
         if e.get("event_type") in {"reconciliation_mismatch", "capture_mismatch"}
         and e.get("status") != "resolved"
     ]
-    refunds = [e for e in refund_events if scope.contains(e.get("event_at"))]
+    refunds = _distinct(e for e in refund_events if scope.contains(e.get("event_at")))
     refund_statuses = [str(e.get("status")) for e in refunds]
     refunded = sum(
         (money(e.get("amount_brl")) or Decimal("0"))
@@ -120,6 +123,14 @@ def analyze_payment(
     }
 
 
+def _distinct(events: Any) -> list[dict[str, Any]]:
+    """Drop byte-identical events: a lifecycle replicated across rows is one event, not two.
+
+    A genuine duplicate charge is two captures at different instants, which is kept.
+    """
+    return list({json.dumps(e, sort_keys=True): e for e in events}.values())
+
+
 def _split_group(captures: list[Decimal], order_value: Decimal | None) -> list[Decimal] | None:
     """Smallest set of >= 2 captures that exactly pays the order value (a valid split)."""
     if not order_value or len(captures) < 2 or len(captures) > MAX_SUBSET_CAPTURES:
@@ -129,8 +140,3 @@ def _split_group(captures: list[Decimal], order_value: Decimal | None) -> list[D
             if abs(sum(group, Decimal("0")) - order_value) <= TOLERANCE:
                 return list(group)
     return None
-
-
-def _needs_refund_timeline(case: dict[str, Any]) -> bool:
-    claims = (case.get("customer_request") or {}).get("claims") or []
-    return any(c.get("topic") in REFUND_TOPICS for c in claims if isinstance(c, dict))

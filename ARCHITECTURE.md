@@ -96,9 +96,21 @@ Least privilege được enforce bằng code (`TOOL_PERMISSIONS` trong `evidence
 | Source conflict | 0 | Áp source precedence ở mục 4 và ghi `data_conflicts`. Nếu có mâu thuẫn trách nhiệm giao hàng thì confidence −0.15 | `handoff` `CONFLICTS_RECORDED` |
 | Invalid specialist result / exception | 0 | Output mặc định an toàn theo schema, kèm evidence đã consume. Batch vẫn tiếp tục | `verification_completed` `FAILED_SAFE_DEFAULT` |
 
-**Query budget (khoảng 7 call/case):** `get_customer_history`, `get_order`, `get_order_items`, `get_product_context` (chỉ khi `include_product_context`), `get_shipment_summary`, `get_payment_timeline`, `get_policy`. Riêng `get_refund_timeline` chỉ gọi khi claim liên quan tới refund.
+**Query budget (5–6 call/case, trung bình 5.5).** Coordinator lập kế hoạch điều tra theo claim (`planner.py`), specialist chỉ gọi họ tool mà kế hoạch cho phép:
+
+| Claim | Tool gọi thêm ngoài phần cố định | Tổng |
+| --- | --- | ---: |
+| Mọi case (cố định) | `get_customer_history`, `get_order`, `get_product_context` (theo `include_product_context`), `get_policy` | 4 |
+| `late_delivery_*` | `get_shipment_summary` | 5 |
+| `payment_mismatch`, `canceled_order_paid`, `unavailable_order_paid` | `get_payment_timeline` | 5 |
+| `valid_split_payment`, `duplicate_charge` | `get_order_items` (giá để so với tổng capture), `get_payment_timeline` | 6 |
+| `refund_pending`, `refund_failed` | `get_payment_timeline`, `get_refund_timeline` | 6 |
+| `unsupported_claim` | `get_shipment_summary`, `get_payment_timeline` (chứng minh không có lỗi) | 6 |
+| Topic lạ | toàn bộ tool | 9 |
+
+Khi không gọi `get_order_items`, item/product/seller ID lấy từ `get_product_context`. Field của domain không được điều tra giữ giá trị an toàn `insufficient_evidence`/`null` thay vì đoán.
 - Không gọi `get_order_payments` vì `get_payment_timeline` đã chứa toàn bộ payment rows.
-- Không gọi `get_sellers` vì item đã có `seller_id`.
+- Không gọi `get_sellers` vì item/product context đã có `seller_id`.
 - Không gọi `get_order` cho candidate sai định dạng.
 - Cache theo `(tool, args)` trong phạm vi case, nên mỗi cặp chỉ gọi tối đa một lần.
 
@@ -121,4 +133,4 @@ Trước khi finalize, Verifier kiểm tra:
 - **Concurrency:** tối đa 4 case chạy đồng thời trên cùng một MCP session (`CASE_CONCURRENCY` trong `cli.py`). Trong một case, shipment agent và payment agent chạy song song, còn lại tuần tự. Mỗi case có collector/cache riêng nên không lẫn evidence.
 - **Lệnh chạy:** `day09 validate-inputs` → `day09 run` → `day09 validate` → `day09 package --output dist/submission.zip`.
 - **Kiểm thử offline:** đặt `DAY09_DUMP_DIR=debug/mcp` khi `day09 run` để lưu response thô (thư mục bị gitignore, không bao giờ vào ZIP). `python scripts/replay.py` chạy lại workflow trên dữ liệu đã lưu mà không gọi MCP.
-- **Tài nguyên:** khoảng 7 MCP call/case, tức khoảng 700 call cho 100 case. Timeout HTTP 300s (connect 30s). Không ghi API key vào code, trace hay output.
+- **Tài nguyên:** khoảng 5.5 MCP call/case, tức khoảng 550 call cho 100 case. Timeout HTTP 300s (connect 30s). Không ghi API key vào code, trace hay output.

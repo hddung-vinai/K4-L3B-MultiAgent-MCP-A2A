@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..a2a import POLICY_AGENT, SHIPMENT_AGENT, CaseContext, Envelope
+from ..planner import SHIPMENT
 from ..timeline import ROW_TIMESTAMP_FIELDS, OrderScope, parse_ts
 
 NOT_DELIVERED_STATUSES = {"canceled", "unavailable"}
@@ -15,9 +16,11 @@ async def run_shipment_agent(ctx: CaseContext, envelope: Envelope) -> list[dict[
     refs: list[str] = []
     summary: dict[str, Any] = {}
 
-    ev = await ctx.evidence.fetch(
-        SHIPMENT_AGENT, "get_shipment_summary", order_id=entity["order_id"]
-    )
+    ev = None
+    if SHIPMENT in ctx.findings["plan"]:
+        ev = await ctx.evidence.fetch(
+            SHIPMENT_AGENT, "get_shipment_summary", order_id=entity["order_id"]
+        )
     if ev is not None and isinstance(ev.data, dict):
         refs.append(ev.ref)
         summary = ev.data
@@ -43,6 +46,7 @@ def analyze_shipment(
     limits = [
         (item.get("seller_id"), parse_ts(item.get("shipping_limit_date")))
         for item in order.get("items") or []
+        if item.get("shipping_limit_date")
     ]
     if not limits:
         limits = [

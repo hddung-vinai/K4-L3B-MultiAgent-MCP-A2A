@@ -32,6 +32,7 @@ from .agents import (
 from .evidence import EvidenceCollector
 from .mcp_gateway import EvidenceGateway, is_transport_failure
 from .output import empty_output
+from .planner import investigation_plan
 from .trace import TraceWriter
 
 log = logging.getLogger(__name__)
@@ -73,6 +74,7 @@ async def solve_case(
 
 
 async def _coordinate(ctx: CaseContext) -> dict[str, Any]:
+    ctx.findings["plan"] = investigation_plan(ctx.case)
     entity = await run_entity_agent(ctx, ctx.assign(ENTITY_AGENT, "RESOLVE_ENTITY"))
 
     if entity.get("scopes"):

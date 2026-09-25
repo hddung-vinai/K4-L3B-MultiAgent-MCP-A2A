@@ -7,10 +7,11 @@ from typing import Any
 
 from ..a2a import VERIFIER, CaseContext, Envelope
 from ..output import empty_output
-from ..timeline import as_brl
+from ..timeline import as_brl, money
 from .policy import ISSUE_EVIDENCE
 
 NO_ACTION_STATUSES = {"no_action"}
+FULL_REFUND_ACTIONS = {"issue_refund"}
 SHIPMENT_ISSUES = {"late_delivery_seller", "late_delivery_logistics"}
 
 
@@ -192,16 +193,22 @@ def _claims(
     evidence: dict[str, list[str]],
 ) -> list[dict[str, Any]]:
     claims = (ctx.case.get("customer_request") or {}).get("claims") or []
-    full_amount = (ctx.findings.get("order") or {}).get("order_value") or payment.get(
-        "captured_total"
-    )
+    # A refund is "full" when it returns everything captured for this purchase and at least
+    # the goods' price (a freight-only refund equal to a freight-only capture is partial).
+    captured = payment.get("captured_total")
+    items = (ctx.findings.get("order") or {}).get("items") or []
+    goods = sum((money(i.get("price")) or Decimal("0") for i in items), Decimal("0"))
     result = []
     for claim in claims[:5]:
         if not isinstance(claim, dict) or not claim.get("claim_id"):
             continue
         topic = claim.get("topic")
         if topic == "requested_full_refund":
-            if refund > 0 and full_amount is not None and refund >= full_amount:
+            action = (ctx.findings.get("policy") or {}).get("recommended_action")
+            full = action in FULL_REFUND_ACTIONS or (
+                goods > 0 and captured is not None and refund >= captured and refund >= goods
+            )
+            if refund > 0 and full:
                 verdict = "supported"
             elif refund > 0:
                 verdict = "partially_supported"
