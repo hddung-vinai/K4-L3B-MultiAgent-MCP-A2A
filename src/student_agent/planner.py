@@ -16,7 +16,6 @@ PAYMENT = "payment"  # get_payment_timeline: captures and reconciliation events
 REFUND = "refund"  # get_refund_timeline: refund lifecycle
 
 FULL_PLAN = frozenset({ITEMS, PRODUCT, SHIPMENT, PAYMENT, REFUND})
-USE_PRODUCT_CONTEXT = False
 
 # Item evidence (get_order_items, domain "item") is a required evidence group for delivery,
 # unavailable-item and claim-rejection issues: omitting it trips missing_required_evidence.
@@ -27,7 +26,8 @@ TOPIC_PLAN: dict[str, frozenset[str]] = {
     "late_delivery_seller": frozenset({ITEMS, SHIPMENT, PAYMENT}),
     "payment_mismatch": frozenset({PAYMENT}),
     "canceled_order_paid": frozenset({PAYMENT}),
-    "unavailable_order_paid": frozenset({ITEMS, PAYMENT}),
+    # The unavailable product itself is part of the case: product context is relevant here.
+    "unavailable_order_paid": frozenset({ITEMS, PAYMENT, PRODUCT}),
     # Split vs duplicate is decided by comparing captures with the order value.
     "valid_split_payment": frozenset({ITEMS, PAYMENT}),
     "duplicate_charge": frozenset({ITEMS, PAYMENT}),
@@ -49,9 +49,7 @@ def investigation_plan(case: dict[str, Any]) -> frozenset[str]:
         plan = set().union(*(TOPIC_PLAN[t] for t in topics))
         if not plan:
             plan = set(FULL_PLAN)
-    # Item/seller ids come from order items (domain "item"). Product context never changes a
-    # decision for any known issue, so it is only fetched for unknown topics (full plan).
+    # Item/seller ids come from order items (domain "item"). Product context is fetched only
+    # where the topic plan asks for it (unavailable product) or for unknown topics.
     plan.add(ITEMS)
-    if not USE_PRODUCT_CONTEXT and plan != set(FULL_PLAN):
-        plan.discard(PRODUCT)
     return frozenset(plan)

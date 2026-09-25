@@ -41,7 +41,7 @@ def main() -> int:
         "--allow-dropped",
         action="append",
         default=[],
-        help="tool the baseline cited that this submission may intentionally omit",
+        help="optional tool: ignored on both sides of the baseline comparison",
     )
     args = ap.parse_args()
 
@@ -181,7 +181,11 @@ def main() -> int:
                 want = Counter(
                     btool[r] for r in bdoc["evidence_refs"] if btool[r] not in args.allow_dropped
                 )
-                got = Counter(consumed[cid].get(r, "?") for r in docs[cid]["evidence_refs"])
+                got = Counter(
+                    tool
+                    for tool in (consumed[cid].get(r, "?") for r in docs[cid]["evidence_refs"])
+                    if tool not in args.allow_dropped
+                )
                 if want != got:
                     diffs.append((cid, dict(want - got), dict(got - want)))
         if diffs:
