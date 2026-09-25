@@ -50,10 +50,15 @@ async def _available_tools(gateway: EvidenceGateway) -> frozenset[str] | None:
 
 
 async def solve_case(
-    case: dict[str, Any], gateway: EvidenceGateway, trace: TraceWriter
+    case: dict[str, Any],
+    gateway: EvidenceGateway,
+    trace: TraceWriter,
+    evidence_cache: dict[Any, Any] | None = None,
 ) -> dict[str, Any]:
     case_id = case["case_id"]
-    collector = EvidenceCollector(gateway, trace, case_id, await _available_tools(gateway))
+    collector = EvidenceCollector(
+        gateway, trace, case_id, await _available_tools(gateway), cache=evidence_cache
+    )
     ctx = CaseContext(case=case, trace=trace, evidence=collector)
     try:
         return await _coordinate(ctx)

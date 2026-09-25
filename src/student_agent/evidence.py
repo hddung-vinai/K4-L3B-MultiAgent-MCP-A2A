@@ -46,12 +46,16 @@ class EvidenceCollector:
         trace: TraceWriter,
         case_id: str,
         available_tools: frozenset[str] | None = None,
+        cache: dict[tuple[str, tuple[tuple[str, str], ...]], Evidence | None] | None = None,
     ) -> None:
         self._gateway = gateway
         self._trace = trace
         self._case_id = case_id
         self._available = available_tools
-        self._cache: dict[tuple[str, tuple[tuple[str, str], ...]], Evidence | None] = {}
+        # The cache may outlive this collector: when an MCP session drops mid-case, the
+        # re-run of that case reuses results already returned (same case, real refs) instead
+        # of calling the tools again.
+        self._cache = {} if cache is None else cache
         self.calls = 0
         self.failures: list[str] = []
         self.consumed_refs: set[str] = set()
@@ -64,11 +68,12 @@ class EvidenceCollector:
             return None
         key = (tool, tuple(sorted(arguments.items())))
         if key in self._cache:
-            return self._cache[key]
-        result = await self._call_with_retry(tool, arguments)
-        self._cache[key] = result
-        self._dump(tool, arguments, result)
-        if result is not None:
+            result = self._cache[key]
+        else:
+            result = await self._call_with_retry(tool, arguments)
+            self._cache[key] = result
+            self._dump(tool, arguments, result)
+        if result is not None and result.ref not in self.consumed_refs:
             self.consumed_refs.add(result.ref)
             self._trace.emit(
                 case_id=self._case_id,

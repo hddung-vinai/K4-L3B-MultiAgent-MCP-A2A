@@ -165,7 +165,7 @@ def _confidence(ctx: CaseContext, issue: str, conflicts: list[dict[str, Any]]) -
     if issue == "insufficient_evidence":
         return 0.3
     topics = _claim_topics(ctx.case)
-    score = 0.92 if issue in topics else 0.7
+    score = 0.97 if issue in topics else 0.7
     if ctx.findings.get("scope_switched"):
         score -= 0.07
     if ctx.findings.get("competing_issues"):

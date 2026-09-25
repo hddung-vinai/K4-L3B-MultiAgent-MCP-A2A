@@ -15,7 +15,7 @@ from .trace import CaseTraceBuffer, TraceWriter
 from .workflow import solve_case
 
 CASE_CONCURRENCY = 4
-MAX_SESSIONS = 6
+MAX_SESSIONS = 20
 RECONNECT_BACKOFF_SECONDS = 3.0
 
 
@@ -59,13 +59,17 @@ async def _run(root: Path, resume: bool = False) -> None:
         trace_path.unlink(missing_ok=True)
         done = set()
     trace = TraceWriter(trace_path, contracts)
+    # Per-case evidence survives a lost MCP session so the re-run makes no duplicate calls.
+    caches: dict[str, dict] = {}
 
     async def run_one(gateway: EvidenceGateway, semaphore: asyncio.Semaphore, case_id: str) -> None:
         async with semaphore:
             case = case_set.cases[case_id]
             buffer = CaseTraceBuffer(trace)
             buffer.emit(case_id=case_id, event_type="case_received", actor="coordinator")
-            output = await solve_case(case, gateway, buffer)
+            output = await solve_case(
+                case, gateway, buffer, evidence_cache=caches.setdefault(case_id, {})
+            )
             contracts.validate_output(output, f"outputs/{case_id}.json")
             if output.get("case_id") != case_id:
                 raise ValueError(f"solver returned a mismatched case_id for {case_id}")
