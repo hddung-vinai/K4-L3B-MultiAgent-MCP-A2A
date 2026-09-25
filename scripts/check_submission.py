@@ -37,6 +37,12 @@ def main() -> int:
     ap.add_argument("zip")
     ap.add_argument("--dumps", default=None, help="raw MCP dump dir of the run")
     ap.add_argument("--baseline", default=None, help="accepted submission to compare evidence")
+    ap.add_argument(
+        "--allow-dropped",
+        action="append",
+        default=[],
+        help="tool the baseline cited that this submission may intentionally omit",
+    )
     args = ap.parse_args()
 
     problems: list[str] = []
@@ -172,7 +178,9 @@ def main() -> int:
             if n.startswith("outputs/"):
                 bdoc = json.loads(b.read(n))
                 cid = bdoc["case_id"]
-                want = Counter(btool[r] for r in bdoc["evidence_refs"])
+                want = Counter(
+                    btool[r] for r in bdoc["evidence_refs"] if btool[r] not in args.allow_dropped
+                )
                 got = Counter(consumed[cid].get(r, "?") for r in docs[cid]["evidence_refs"])
                 if want != got:
                     diffs.append((cid, dict(want - got), dict(got - want)))

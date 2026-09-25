@@ -16,6 +16,7 @@ PAYMENT = "payment"  # get_payment_timeline: captures and reconciliation events
 REFUND = "refund"  # get_refund_timeline: refund lifecycle
 
 FULL_PLAN = frozenset({ITEMS, PRODUCT, SHIPMENT, PAYMENT, REFUND})
+USE_PRODUCT_CONTEXT = False
 
 # Item evidence (get_order_items, domain "item") is a required evidence group for delivery,
 # unavailable-item and claim-rejection issues: omitting it trips missing_required_evidence.
@@ -48,9 +49,9 @@ def investigation_plan(case: dict[str, Any]) -> frozenset[str]:
         plan = set().union(*(TOPIC_PLAN[t] for t in topics))
         if not plan:
             plan = set(FULL_PLAN)
-    scope = case.get("investigation_scope") or {}
-    if scope.get("include_product_context", True):
-        plan.add(PRODUCT)
-    elif ITEMS not in plan:
-        plan.add(ITEMS)  # still need item/seller ids from somewhere
+    # Item/seller ids come from order items (domain "item"). Product context never changes a
+    # decision for any known issue, so it is only fetched for unknown topics (full plan).
+    plan.add(ITEMS)
+    if not USE_PRODUCT_CONTEXT and plan != set(FULL_PLAN):
+        plan.discard(PRODUCT)
     return frozenset(plan)

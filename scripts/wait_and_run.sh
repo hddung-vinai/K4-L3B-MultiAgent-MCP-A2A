@@ -62,7 +62,7 @@ ZIP="dist/submission-${LABEL}.zip"
 if "$DAY09" validate >> "$LOG" 2>&1 \
   && "$DAY09" package --output "$ZIP" >> "$LOG" 2>&1 \
   && "$PY" scripts/check_submission.py "$ZIP" --dumps "$DUMPS" \
-       --baseline dist/submission-v1.zip >> "$LOG" 2>&1; then
+       --baseline dist/submission-v1.zip ${CHECK_EXTRA:-} >> "$LOG" 2>&1; then
   cp "$ZIP" dist/submission.zip
   echo "SUCCESS: ${ZIP} passed every check and is now dist/submission.zip" >> "$LOG"
 else
