@@ -69,6 +69,13 @@ async def _run(root: Path, resume: bool = False) -> None:
             contracts.validate_output(output, f"outputs/{case_id}.json")
             if output.get("case_id") != case_id:
                 raise ValueError(f"solver returned a mismatched case_id for {case_id}")
+            if not output.get("evidence_refs"):
+                # An evidence-less output trips missing_required_evidence (score 0 for the whole
+                # submission). Abort instead of writing it; usually MCP is rejecting calls.
+                raise RuntimeError(
+                    f"{case_id}: no MCP evidence collected (every tool call failed); "
+                    "aborting run - check the MCP gateway, then rerun"
+                )
             buffer.emit(case_id=case_id, event_type="case_finalized", actor="coordinator")
             target = output_root / f"{case_id}.json"
             temporary = target.with_suffix(".json.tmp")

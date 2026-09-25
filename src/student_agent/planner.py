@@ -19,9 +19,11 @@ FULL_PLAN = frozenset({ITEMS, PRODUCT, SHIPMENT, PAYMENT, REFUND})
 
 # Item evidence (get_order_items, domain "item") is a required evidence group for delivery,
 # unavailable-item and claim-rejection issues: omitting it trips missing_required_evidence.
+# Payment is investigated for late deliveries too: payment_analysis (verdict and totals) is
+# scored for every case, even though it is not cited as evidence for a delivery issue.
 TOPIC_PLAN: dict[str, frozenset[str]] = {
-    "late_delivery_logistics": frozenset({ITEMS, SHIPMENT}),
-    "late_delivery_seller": frozenset({ITEMS, SHIPMENT}),
+    "late_delivery_logistics": frozenset({ITEMS, SHIPMENT, PAYMENT}),
+    "late_delivery_seller": frozenset({ITEMS, SHIPMENT, PAYMENT}),
     "payment_mismatch": frozenset({PAYMENT}),
     "canceled_order_paid": frozenset({PAYMENT}),
     "unavailable_order_paid": frozenset({ITEMS, PAYMENT}),
