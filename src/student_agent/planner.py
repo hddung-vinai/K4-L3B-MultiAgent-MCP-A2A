@@ -17,19 +17,21 @@ REFUND = "refund"  # get_refund_timeline: refund lifecycle
 
 FULL_PLAN = frozenset({ITEMS, PRODUCT, SHIPMENT, PAYMENT, REFUND})
 
+# Item evidence (get_order_items, domain "item") is a required evidence group for delivery,
+# unavailable-item and claim-rejection issues: omitting it trips missing_required_evidence.
 TOPIC_PLAN: dict[str, frozenset[str]] = {
-    "late_delivery_logistics": frozenset({SHIPMENT}),
-    "late_delivery_seller": frozenset({SHIPMENT}),
+    "late_delivery_logistics": frozenset({ITEMS, SHIPMENT}),
+    "late_delivery_seller": frozenset({ITEMS, SHIPMENT}),
     "payment_mismatch": frozenset({PAYMENT}),
     "canceled_order_paid": frozenset({PAYMENT}),
-    "unavailable_order_paid": frozenset({PAYMENT}),
+    "unavailable_order_paid": frozenset({ITEMS, PAYMENT}),
     # Split vs duplicate is decided by comparing captures with the order value.
     "valid_split_payment": frozenset({ITEMS, PAYMENT}),
     "duplicate_charge": frozenset({ITEMS, PAYMENT}),
     "refund_pending": frozenset({PAYMENT, REFUND}),
     "refund_failed": frozenset({PAYMENT, REFUND}),
     # Rejecting a claim needs both delivery and payment evidence showing no fault.
-    "unsupported_claim": frozenset({SHIPMENT, PAYMENT}),
+    "unsupported_claim": frozenset({ITEMS, SHIPMENT, PAYMENT}),
     # Money request only; the concrete issue topic drives the plan.
     "requested_full_refund": frozenset(),
 }
