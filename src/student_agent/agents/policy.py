@@ -146,7 +146,7 @@ async def run_policy_agent(ctx: CaseContext, envelope: Envelope) -> dict[str, An
     refund_lines = []
     if refund > 0:
         refund_lines.append(
-            {"reason_code": issue.upper(), "amount_brl": float(refund), "entity_id": order_id}
+            {"reason_code": issue, "amount_brl": float(refund), "entity_id": order_id}
         )
     decision = {
         "primary_issue": issue,

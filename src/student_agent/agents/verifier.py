@@ -227,19 +227,20 @@ def _claims(
     # A refund is "full" when it returns everything captured for this purchase and at least
     # the goods' price (a freight-only refund equal to a freight-only capture is partial).
     captured = payment.get("captured_total")
-    items = (ctx.findings.get("order") or {}).get("items") or []
-    goods = sum((money(i.get("price")) or Decimal("0") for i in items), Decimal("0"))
     result = []
     for claim in claims[:5]:
         if not isinstance(claim, dict) or not claim.get("claim_id"):
             continue
         topic = claim.get("topic")
         if topic == "requested_full_refund":
+            # Full refund = everything captured for this lifecycle is returned. A refund that is
+            # already pending cannot be judged yet; no refund at all rejects the request.
             action = (ctx.findings.get("policy") or {}).get("recommended_action")
-            full = action in FULL_REFUND_ACTIONS or (
-                goods > 0 and captured is not None and refund >= captured and refund >= goods
-            )
-            if refund > 0 and full:
+            pending = "pending" in (payment.get("refund_statuses") or [])
+            full = action in FULL_REFUND_ACTIONS or (captured is not None and refund >= captured)
+            if pending and refund == 0:
+                verdict = "insufficient_evidence"
+            elif refund > 0 and full:
                 verdict = "supported"
             elif refund > 0:
                 verdict = "partially_supported"

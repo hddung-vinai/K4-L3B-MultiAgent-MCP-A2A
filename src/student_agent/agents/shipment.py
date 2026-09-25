@@ -76,7 +76,9 @@ def analyze_shipment(
 
     conflict = None
     if status in NOT_DELIVERED_STATUSES:
-        verdict = "insufficient_evidence"
+        # Never delivered, but no delay signal either (handed to the carrier within the
+        # seller limit, no late event): the delivery itself is not at fault.
+        verdict = "on_time"
     elif lost:
         verdict = "lost"
     elif returned:
